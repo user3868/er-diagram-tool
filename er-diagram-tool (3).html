@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-R Diagram Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+  :root{--bg:#0f1117;--surface:#1a1d27;--surface-2:#232736;--border:#2e3348;--text:#e4e6f0;--text-dim:#8b90a8;--accent:#5b6eef;--accent-glow:rgba(91,110,239,0.15);--green:#4ecb8d;--orange:#f0a05e;--red:#ef6b6b;--cyan:#5ec4d4}
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+  .app-header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);height:52px}
+  .app-header h1{font-size:17px;font-weight:600;letter-spacing:-0.01em}
+  .app-header .badge{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--accent-glow);color:var(--accent);font-weight:500;border:1px solid rgba(91,110,239,0.3)}
+  .main-layout{display:grid;grid-template-columns:400px 1fr;height:calc(100vh - 52px)}
+  .editor-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);min-width:0}
+  .panel-toolbar{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .tpl-btn{font-family:inherit;font-size:12px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+  .tpl-btn:hover{border-color:var(--accent);color:var(--text);background:var(--accent-glow)}
+  .tpl-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+  .editor-wrap{flex:1;display:flex;flex-direction:column;min-height:0}
+  #code-editor{flex:1;width:100%;background:var(--bg);color:var(--green);border:none;padding:14px;font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:12.5px;line-height:1.65;resize:none;outline:none;tab-size:4}
+  #code-editor::placeholder{color:var(--text-dim)}
+  .ref-panel{padding:10px 14px;border-top:1px solid var(--border);background:var(--surface)}
+  .ref-title{font-size:11px;font-weight:600;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em}
+  .ref-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+  .ref-item{font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 6px;border-radius:3px;background:var(--bg);display:flex;align-items:center;gap:6px}
+  .ref-item code{color:var(--orange);min-width:28px;display:inline-block}
+  .ref-item .label{color:var(--text-dim);font-family:inherit;font-size:10px}
+  .render-bar{padding:10px 14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .render-btn{font-family:inherit;font-size:13px;font-weight:600;padding:7px 18px;border-radius:7px;border:none;background:var(--accent);color:#fff;cursor:pointer;transition:all 0.15s}
+  .render-btn:hover{filter:brightness(1.15);box-shadow:0 3px 12px var(--accent-glow)}
+  .status-msg{font-size:12px;color:var(--text-dim)}.status-msg.ok{color:var(--green)}.status-msg.err{color:var(--red)}
+  .preview-panel{display:flex;flex-direction:column;background:var(--bg);min-width:0}
+  .preview-toolbar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .preview-toolbar span{font-size:13px;color:var(--text-dim);font-weight:500}
+  .preview-actions{display:flex;gap:6px}
+  .act-btn{font-family:inherit;font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;transition:all 0.15s}
+  .act-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+  .preview-area{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:20px}
+  .diagram-card{background:#fff;border-radius:10px;padding:28px;min-width:280px;max-width:100%;box-shadow:0 6px 24px rgba(0,0,0,0.35);overflow:auto}
+  .diagram-card svg{display:block;max-width:100%;height:auto}
+  .empty-hint{text-align:center;color:#aaa;padding:40px 20px}
+  .empty-hint .ico{font-size:42px;margin-bottom:12px;opacity:0.3}
+  .empty-hint p{font-size:13px;line-height:1.5}
+  .diagram-card svg .entity-draggable{cursor:grab}
+  .diagram-card svg .entity-draggable:hover rect:first-of-type{filter:drop-shadow(0 0 8px rgba(57,73,171,0.55));transition:filter 0.15s}
+  .diagram-card svg .entity-dragging{cursor:grabbing !important;opacity:0.82}
+  .drag-hint{position:fixed;bottom:20px;right:20px;background:var(--surface-2);color:var(--text-dim);padding:8px 14px;border-radius:8px;font-size:12px;border:1px solid var(--border);pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:100}
+  .drag-hint.visible{opacity:1}
+  @media(max-width:800px){.main-layout{grid-template-columns:1fr;grid-template-rows:1fr 1fr}.editor-panel{border-right:none;border-bottom:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<header class="app-header">
+  <h1>E-R Diagram Generator</h1>
+  <span class="badge">Mermaid</span>
+</header>
+<div class="main-layout">
+  <section class="editor-panel">
+    <nav class="panel-toolbar" id="tpl-bar"></nav>
+    <div class="editor-wrap"><textarea id="code-editor" spellcheck="false" placeholder="在此输入 Mermaid erDiagram 语法..."></textarea></div>
+    <div class="ref-panel">
+      <div class="ref-title">基数符号 Cardinality</div>
+      <div class="ref-grid">
+        <div class="ref-item"><code>||</code><span class="label">Exactly One</span></div>
+        <div class="ref-item"><code>|{</code><span class="label">One or More</span></div>
+        <div class="ref-item"><code>o|</code><span class="label">Zero or One</span></div>
+        <div class="ref-item"><code>o{</code><span class="label">Zero or More</span></div>
+      </div>
+    </div>
+    <div class="render-bar">
+      <button class="render-btn" id="render-btn">&#9654; 渲染</button>
+      <span id="status-msg" class="status-msg">Ctrl + Enter</span>
+    </div>
+  </section>
+  <section class="preview-panel">
+    <div class="preview-toolbar">
+      <span>预览</span>
+      <div class="preview-actions" id="preview-actions"></div>
+    </div>
+    <div class="preview-area">
+      <div id="diagram-card" class="diagram-card">
+        <div class="empty-hint"><div class="ico">&#9671;</div><p>选择模板或编写语法，点击「渲染」</p></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="drag-hint" class="drag-hint">拖拽实体节点来调整布局，连线与标签自动跟随</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+<script>
+(function(){
+'use strict';
+var currentZoom=1,renderCounter=0;
+var editor=document.getElementById('code-editor');
+var card=document.getElementById('diagram-card');
+var statusEl=document.getElementById('status-msg');
+var dragHint=document.getElementById('drag-hint');
+
+/* Build toolbar buttons via JS */
+var tplBar=document.getElementById('tpl-bar');
+[['supply','供应链'],['hospital','医院'],['school','学校'],['ecommerce','电商'],['blank','空白']].forEach(function(t,i){
+  var btn=document.createElement('button');
+  btn.className='tpl-btn'+(i===0?' active':'');
+  btn.textContent=t[1];
+  btn.onclick=function(){loadTemplate(t[0],btn);};
+  tplBar.appendChild(btn);
+});
+var actBar=document.getElementById('preview-actions');
+[['zoom(0.2)','放大 +'],['zoom(-0.2)','缩小 \u2212'],['zoom(0)','重置'],['exportSVG()','导出 SVG']].forEach(function(a){
+  var btn=document.createElement('button');btn.className='act-btn';btn.textContent=a[1];
+  btn.setAttribute('onclick',a[0]);actBar.appendChild(btn);
+});
+document.getElementById('render-btn').onclick=function(){renderDiagram();};
+
+var templates={
+supply:'erDiagram\n    SUPPLIER ||--o{ ITEM : "Supplies"\n    SUPPLIER ||--|{ SHIPMENT : "Sends"\n    SHIPMENT }o--|{ ITEM : "Includes"\n    CUSTOMER o|--o{ ORDER : "Submits"\n    ORDER }|--|{ ITEM : "Requests"\n    ITEM }o--o| PRODUCT : "Uses"\n\n    SUPPLIER {\n        string Supplier_ID PK\n        string Supplier_Name\n        string Address\n        string Phone\n    }\n    CUSTOMER {\n        string Customer_ID PK\n        string Customer_Name\n        string Address\n    }\n    ORDER {\n        string Order_ID PK\n        date Order_Date\n        date Promised_Date\n    }\n    ITEM {\n        string Item_ID PK\n        float Unit_Price\n        int Quantity\n    }\n    SHIPMENT {\n        string Shipment_ID PK\n        date Ship_Date\n    }\n    PRODUCT {\n        string Product_ID PK\n        string Description\n        string Finish\n    }',
+hospital:'erDiagram\n    PATIENT ||--o| RESPONSIBLE_PHYSICIAN : "Is Cared For"\n    PATIENT ||--o| OUTPATIENT : "is a"\n    PATIENT ||--o| RESIDENT_PATIENT : "is a"\n    RESIDENT_PATIENT ||--|| BED : "Is Assigned"\n\n    PATIENT {\n        string Patient_ID PK\n        string Patient_Name\n        date Admit_Date\n    }\n    RESPONSIBLE_PHYSICIAN {\n        string Physician_ID PK\n        string Physician_Name\n        string Specialty\n    }\n    OUTPATIENT {\n        date Checkback_Date\n    }\n    RESIDENT_PATIENT {\n        date Date_Discharged\n    }\n    BED {\n        string Bed_ID PK\n        string Room_Number\n        string Wing\n    }',
+school:'erDiagram\n    STUDENT }|--|{ COURSE : "Enrolls In"\n    COURSE ||--|| DEPARTMENT : "Belongs To"\n    PROFESSOR ||--|{ COURSE : "Teaches"\n    PROFESSOR }|--|| DEPARTMENT : "Works In"\n    STUDENT ||--o{ GRADE : "Receives"\n    GRADE }|--|| COURSE : "For"\n\n    STUDENT {\n        string Student_ID PK\n        string Name\n        string Major\n        date Enroll_Date\n    }\n    COURSE {\n        string Course_ID PK\n        string Course_Name\n        int Credits\n        string Semester\n    }\n    PROFESSOR {\n        string Professor_ID PK\n        string Name\n        string Title\n        string Office\n    }\n    DEPARTMENT {\n        string Dept_ID PK\n        string Dept_Name\n        string Building\n    }\n    GRADE {\n        string Grade_ID PK\n        string Letter_Grade\n        float GPA_Points\n    }',
+ecommerce:'erDiagram\n    USER ||--o{ ORDER : "Places"\n    USER ||--o{ REVIEW : "Writes"\n    USER ||--|| CART : "Has"\n    ORDER }|--|{ ORDER_LINE : "Contains"\n    ORDER_LINE }|--|| PRODUCT : "References"\n    PRODUCT }|--|| CATEGORY : "Belongs To"\n    PRODUCT ||--o{ REVIEW : "Has"\n    CART }o--o{ PRODUCT : "Holds"\n    ORDER ||--|| PAYMENT : "Paid By"\n    ORDER ||--|| SHIPPING : "Shipped Via"\n\n    USER {\n        string User_ID PK\n        string Username\n        string Email\n        date Registered\n    }\n    ORDER {\n        string Order_ID PK\n        date Order_Date\n        string Status\n        float Total_Amount\n    }\n    ORDER_LINE {\n        int Line_Number\n        int Quantity\n        float Unit_Price\n    }\n    PRODUCT {\n        string Product_ID PK\n        string Name\n        float Price\n        int Stock\n    }\n    CATEGORY {\n        string Category_ID PK\n        string Category_Name\n    }\n    REVIEW {\n        string Review_ID PK\n        int Rating\n        string Comment\n        date Review_Date\n    }\n    CART {\n        string Cart_ID PK\n        date Last_Updated\n    }\n    PAYMENT {\n        string Payment_ID PK\n        string Method\n        float Amount\n        date Paid_Date\n    }\n    SHIPPING {\n        string Shipping_ID PK\n        string Carrier\n        string Tracking_No\n        date Ship_Date\n    }',
+blank:'erDiagram\n    %% Cardinality:\n    %%   || = exactly one    o| = zero or one\n    %%   |{ = one or more    o{ = zero or more\n\n    ENTITY_A ||--o{ ENTITY_B : "has many"\n\n    ENTITY_A {\n        string ID PK\n        string Name\n    }\n    ENTITY_B {\n        string ID PK\n        string Description\n    }'
+};
+
+mermaid.initialize({startOnLoad:false,theme:'default',er:{diagramPadding:20,layoutDirection:'TB',minEntityWidth:100,minEntityHeight:75,entityPadding:15,useMaxWidth:false},themeVariables:{primaryColor:'#e8eaf6',primaryBorderColor:'#3949ab',primaryTextColor:'#1a1a2e',lineColor:'#5c6bc0',secondaryColor:'#fff3e0',tertiaryColor:'#e8f5e9'}});
+
+window.loadTemplate=function(name,btnEl){
+  var btns=document.querySelectorAll('.tpl-btn');
+  for(var i=0;i<btns.length;i++)btns[i].classList.remove('active');
+  if(btnEl)btnEl.classList.add('active');
+  editor.value=templates[name]||'';
+  renderDiagram();
+};
+
+window.renderDiagram=function(){
+  var code=editor.value.trim();
+  if(!code){setStatus('请输入语法','err');return;}
+  setStatus('渲染中…','');
+  renderCounter++;
+  var id='mermaid-tmp-'+renderCounter;
+  var tmp=document.createElement('div');
+  tmp.id=id;
+  tmp.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;visibility:hidden;';
+  document.body.appendChild(tmp);
+  mermaid.render(id,code).then(function(result){
+    cleanup(id);
+    card.innerHTML=result.svg;
+    applyZoomToSVG();
+    setTimeout(function(){setupDrag();},100);
+    setStatus('\u2713 渲染成功 \u2014 拖拽实体调整布局','ok');
+    showDragHint();
+  }).catch(function(err){
+    cleanup(id);
+    var msg=(err&&err.message)?err.message:String(err);
+    card.innerHTML='<div class="empty-hint"><div class="ico" style="color:#ef6b6b">\u2717</div><p style="color:#ef6b6b">语法错误<br><small>'+escapeHTML(msg.substring(0,120))+'</small></p></div>';
+    setStatus('\u2717 语法错误','err');
+  });
+};
+function cleanup(id){var el=document.getElementById(id);if(el&&el.parentNode)el.parentNode.removeChild(el);var d=document.getElementById('d'+id);if(d&&d.parentNode)d.parentNode.removeChild(d);}
+function showDragHint(){dragHint.classList.add('visible');setTimeout(function(){dragHint.classList.remove('visible');},2500);}
+
+/* ====================================================================
+ *  DRAG SYSTEM: 4-side smart connection + label following
+ * ==================================================================== */
+function setupDrag(){
+  var svg=card.querySelector('svg');
+  if(!svg)return;
+
+  /* ── 1. Collect entity groups ── */
+  var entityMap={},entities=[];
+  svg.querySelectorAll('g').forEach(function(g){
+    var gid=g.getAttribute('id')||'';
+    if(gid.indexOf('entity-')!==0)return;
+    entities.push(g);
+    g.classList.add('entity-draggable');
+    var bbox=g.getBBox();
+    var tr=parseTr(g);
+    entityMap[gid]={el:g,id:gid,ox:tr.x,oy:tr.y,dx:0,dy:0,bbox:bbox,
+      cx:tr.x+bbox.x+bbox.width/2,cy:tr.y+bbox.y+bbox.height/2};
+  });
+  if(entities.length===0)return;
+  var eids=Object.keys(entityMap);
+
+  /* ── 2. Collect relationship paths ── */
+  var relPaths=Array.from(svg.querySelectorAll('path.er.relationshipLine'));
+
+  /* ── 3. Collect labels ──
+     KEY INSIGHT: Mermaid ER labels are standalone <text> elements with
+     class="er relationshipLabel" and id like "rel0", "rel1", etc.
+     They are NOT wrapped in <g> — just bare <text> with x/y attributes.
+     Also collect the background <rect> that sits behind each label. */
+
+  var labelTextEls=Array.from(svg.querySelectorAll('text.er.relationshipLabel'));
+
+  /* Build label info list: each label has its <text> el, original x/y,
+     and optionally the background <rect> (shares same id pattern) */
+  var labelInfos=[];
+  labelTextEls.forEach(function(textEl){
+    var origX=parseFloat(textEl.getAttribute('x'))||0;
+    var origY=parseFloat(textEl.getAttribute('y'))||0;
+
+    /* Find corresponding background rect:
+       Mermaid often places a <rect> just before the <text> as a label background.
+       It typically has matching position or the same parent + similar id. */
+    var bgRect=null;
+    var tid=textEl.getAttribute('id')||'';
+    if(tid){
+      /* The background rect usually has no id but is the previous sibling
+         or shares the parent. Walk previous siblings looking for a rect. */
+      var prev=textEl.previousElementSibling;
+      while(prev){
+        if(prev.tagName==='rect'){
+          /* Check if the rect is near the text position */
+          var rx=parseFloat(prev.getAttribute('x'))||0;
+          var ry=parseFloat(prev.getAttribute('y'))||0;
+          var rw=parseFloat(prev.getAttribute('width'))||0;
+          var rh=parseFloat(prev.getAttribute('height'))||0;
+          var rcx=rx+rw/2, rcy=ry+rh/2;
+          if(Math.abs(rcx-origX)<100 && Math.abs(rcy-origY)<50){
+            bgRect=prev;
+          }
+          break;
+        }
+        prev=prev.previousElementSibling;
+      }
+    }
+
+    labelInfos.push({
+      textEl:textEl,
+      bgRect:bgRect,
+      origX:origX,
+      origY:origY,
+      bgOrigX:bgRect?parseFloat(bgRect.getAttribute('x'))||0:0,
+      bgOrigY:bgRect?parseFloat(bgRect.getAttribute('y'))||0:0,
+      used:false
+    });
+  });
+
+  /* ── 4. Build connections: path + start/end entity + matched label ── */
+  var connections=[];
+  relPaths.forEach(function(path){
+    var d=path.getAttribute('d');
+    if(!d)return;
+    var fp=getFirstPt(d),lp=getLastPt(d);
+    if(!fp||!lp)return;
+    var se=closestEnt(fp,entityMap,eids);
+    var ee=closestEnt(lp,entityMap,eids);
+    if(!se||!ee||se===ee)return;
+
+    /* Match label: find closest unused label <text> to path midpoint */
+    var mx=(fp.x+lp.x)/2, my=(fp.y+lp.y)/2;
+    var bestL=null, bestD=1e9;
+    labelInfos.forEach(function(li){
+      if(li.used)return;
+      var dd=Math.hypot(li.origX-mx,li.origY-my);
+      if(dd<bestD){bestD=dd;bestL=li;}
+    });
+    if(bestL&&bestD<800)bestL.used=true; else bestL=null;
+
+    connections.push({path:path,origD:d,startEnt:se,endEnt:ee,label:bestL});
+  });
+
+  /* ── 5. Attach drag handlers ── */
+  entities.forEach(function(el){makeDraggable(el,svg,entityMap,connections);});
+}
+
+function parseTr(g){
+  var t=g.getAttribute('transform')||'';
+  var m=t.match(/translate\(\s*([-\d.eE]+)[,\s]+([-\d.eE]+)\s*\)/);
+  return m?{x:parseFloat(m[1]),y:parseFloat(m[2])}:{x:0,y:0};
+}
+function getFirstPt(d){
+  var m=d.match(/M\s*([-\d.eE]+)[,\s]+([-\d.eE]+)/i);
+  return m?{x:+m[1],y:+m[2]}:null;
+}
+function getLastPt(d){
+  var all=[],re=/([-\d.eE]+)[,\s]+([-\d.eE]+)/g,m;
+  while((m=re.exec(d))!==null)all.push({x:+m[1],y:+m[2]});
+  return all.length?all[all.length-1]:null;
+}
+function closestEnt(pt,map,ids){
+  var b=null,bd=1e9;
+  ids.forEach(function(id){var e=map[id];var d=Math.hypot(pt.x-e.cx,pt.y-e.cy);if(d<bd){bd=d;b=id;}});
+  return b;
+}
+function R(n){return Math.round(n*100)/100;}
+
+/* ================================================================
+ *  4-SIDE SMART CONNECTION SYSTEM (preserved exactly)
+ * ================================================================ */
+function getConnPt(info,side){
+  var tx=info.ox+info.dx,ty=info.oy+info.dy,b=info.bbox;
+  switch(side){
+    case 'top':   return{x:tx+b.x+b.width/2,  y:ty+b.y};
+    case 'bottom':return{x:tx+b.x+b.width/2,  y:ty+b.y+b.height};
+    case 'left':  return{x:tx+b.x,              y:ty+b.y+b.height/2};
+    case 'right': return{x:tx+b.x+b.width,      y:ty+b.y+b.height/2};
+  }
+}
+
+function chooseSides(a,b){
+  var sides=['top','bottom','left','right'];
+  var best=null,bestS=1e9;
+  for(var i=0;i<4;i++){for(var j=0;j<4;j++){
+    var sA=sides[i],sB=sides[j];
+    var pA=getConnPt(a,sA),pB=getConnPt(b,sB);
+    var dist=Math.hypot(pB.x-pA.x,pB.y-pA.y);
+    var pen=0,dx=pB.x-pA.x,dy=pB.y-pA.y;
+    if(sA==='right'&&dx>0)pen-=20;
+    else if(sA==='left'&&dx<0)pen-=20;
+    else if(sA==='bottom'&&dy>0)pen-=20;
+    else if(sA==='top'&&dy<0)pen-=20;
+    else pen+=50;
+    if(sB==='left'&&dx>0)pen-=20;
+    else if(sB==='right'&&dx<0)pen-=20;
+    else if(sB==='top'&&dy>0)pen-=20;
+    else if(sB==='bottom'&&dy<0)pen-=20;
+    else pen+=50;
+    if(sA===sB)pen+=25;
+    var score=dist+pen;
+    if(score<bestS){bestS=score;best={sA:sA,sB:sB};}
+  }}
+  return best;
+}
+
+function buildPath(p1,s1,p2,s2){
+  var dist=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+  var off=Math.max(35,Math.min(140,dist*0.4));
+  var c1=sOff(p1,s1,off),c2=sOff(p2,s2,off);
+  return 'M'+R(p1.x)+','+R(p1.y)+' C'+R(c1.x)+','+R(c1.y)+' '+R(c2.x)+','+R(c2.y)+' '+R(p2.x)+','+R(p2.y);
+}
+function sOff(pt,side,d){
+  switch(side){
+    case 'top':   return{x:pt.x,y:pt.y-d};
+    case 'bottom':return{x:pt.x,y:pt.y+d};
+    case 'left':  return{x:pt.x-d,y:pt.y};
+    case 'right': return{x:pt.x+d,y:pt.y};
+  }
+}
+
+/* ================================================================
+ *  DRAG HANDLER
+ * ================================================================ */
+function makeDraggable(el,svg,entityMap,connections){
+  var eid=el.getAttribute('id');
+  var dragging=false,sx,sy,sdx,sdy;
+
+  el.addEventListener('mousedown',function(e){
+    if(e.button!==0)return;
+    e.preventDefault();e.stopPropagation();
+    startD(e.clientX,e.clientY);
+    document.addEventListener('mousemove',onMM);
+    document.addEventListener('mouseup',onMU);
+  });
+  el.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1)return;
+    e.preventDefault();e.stopPropagation();
+    startD(e.touches[0].clientX,e.touches[0].clientY);
+    document.addEventListener('touchmove',onTM,{passive:false});
+    document.addEventListener('touchend',onTE);
+  },{passive:false});
+
+  function startD(cx,cy){
+    dragging=true;el.classList.add('entity-dragging');
+    var p=svgPt(svg,cx,cy);sx=p.x;sy=p.y;
+    var info=entityMap[eid];sdx=info.dx;sdy=info.dy;
+  }
+  function onMM(e){if(dragging){e.preventDefault();doM(e.clientX,e.clientY);}}
+  function onTM(e){if(dragging&&e.touches.length===1){e.preventDefault();doM(e.touches[0].clientX,e.touches[0].clientY);}}
+  function doM(cx,cy){
+    var p=svgPt(svg,cx,cy);
+    var info=entityMap[eid];
+    info.dx=sdx+(p.x-sx);
+    info.dy=sdy+(p.y-sy);
+    var nx=info.ox+info.dx,ny=info.oy+info.dy;
+    el.setAttribute('transform','translate('+R(nx)+','+R(ny)+')');
+    info.cx=nx+info.bbox.x+info.bbox.width/2;
+    info.cy=ny+info.bbox.y+info.bbox.height/2;
+    updateLines(eid,connections,entityMap);
+  }
+  function onMU(){endD();document.removeEventListener('mousemove',onMM);document.removeEventListener('mouseup',onMU);}
+  function onTE(){endD();document.removeEventListener('touchmove',onTM);document.removeEventListener('touchend',onTE);}
+  function endD(){if(!dragging)return;dragging=false;el.classList.remove('entity-dragging');expandVB(svg,entityMap);}
+}
+
+function svgPt(svg,cx,cy){
+  var pt=svg.createSVGPoint();pt.x=cx;pt.y=cy;
+  var ctm=svg.getScreenCTM();
+  return ctm?pt.matrixTransform(ctm.inverse()):pt;
+}
+
+/* ── Update all lines + labels connected to moved entity ── */
+function updateLines(movedId,connections,entityMap){
+  connections.forEach(function(c){
+    if(c.startEnt!==movedId&&c.endEnt!==movedId)return;
+    var si=entityMap[c.startEnt],ei=entityMap[c.endEnt];
+    if(!si||!ei)return;
+
+    /* 4-side smart path routing */
+    var sides=chooseSides(si,ei);
+    var p1=getConnPt(si,sides.sA);
+    var p2=getConnPt(ei,sides.sB);
+    c.path.setAttribute('d',buildPath(p1,sides.sA,p2,sides.sB));
+
+    /* ── Move label <text> + background <rect> to path midpoint ── */
+    if(c.label){
+      var midX=(p1.x+p2.x)/2;
+      var midY=(p1.y+p2.y)/2;
+
+      /* Move the <text> element by setting x and y directly */
+      c.label.textEl.setAttribute('x',R(midX));
+      c.label.textEl.setAttribute('y',R(midY));
+
+      /* Move the background <rect> by the same delta */
+      if(c.label.bgRect){
+        var ddx=midX-c.label.origX;
+        var ddy=midY-c.label.origY;
+        c.label.bgRect.setAttribute('x',R(c.label.bgOrigX+ddx));
+        c.label.bgRect.setAttribute('y',R(c.label.bgOrigY+ddy));
+      }
+    }
+  });
+}
+
+/* ── Expand viewBox ── */
+function expandVB(svg,entityMap){
+  var vb=svg.getAttribute('viewBox');if(!vb)return;
+  var p=vb.split(/[\s,]+/).map(Number);if(p.length!==4)return;
+  var x1=p[0],y1=p[1],x2=p[0]+p[2],y2=p[1]+p[3],changed=false,pad=50;
+  Object.keys(entityMap).forEach(function(id){
+    var info=entityMap[id];
+    var l=info.ox+info.dx+info.bbox.x,t=info.oy+info.dy+info.bbox.y;
+    var rr=l+info.bbox.width,bb=t+info.bbox.height;
+    if(l-pad<x1){x1=l-pad;changed=true;}
+    if(t-pad<y1){y1=t-pad;changed=true;}
+    if(rr+pad>x2){x2=rr+pad;changed=true;}
+    if(bb+pad>y2){y2=bb+pad;changed=true;}
+  });
+  if(changed)svg.setAttribute('viewBox',R(x1)+' '+R(y1)+' '+R(x2-x1)+' '+R(y2-y1));
+}
+
+/* ── Zoom ── */
+window.zoom=function(delta){
+  if(delta===0)currentZoom=1;
+  else currentZoom=Math.min(3,Math.max(0.3,currentZoom+delta));
+  applyZoomToSVG();
+};
+function applyZoomToSVG(){
+  var svg=card.querySelector('svg');if(!svg)return;
+  svg.style.transform='scale('+currentZoom+')';
+  svg.style.transformOrigin='top left';
+}
+
+/* ── Export ── */
+window.exportSVG=function(){
+  var svg=card.querySelector('svg');
+  if(!svg){setStatus('没有可导出的图表','err');return;}
+  var data=new XMLSerializer().serializeToString(svg);
+  var blob=new Blob([data],{type:'image/svg+xml;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='er-diagram.svg';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+};
+
+function setStatus(t,type){statusEl.textContent=t;statusEl.className='status-msg'+(type?' '+type:'');}
+function escapeHTML(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML;}
+
+editor.addEventListener('keydown',function(e){
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();renderDiagram();}
+  if(e.key==='Tab'){e.preventDefault();var s=e.target.selectionStart,end=e.target.selectionEnd;e.target.value=e.target.value.substring(0,s)+'    '+e.target.value.substring(end);e.target.selectionStart=e.target.selectionEnd=s+4;}
+});
+
+editor.value=templates.supply;
+setTimeout(renderDiagram,500);
+})();
+</script>
+</body>
+</html>

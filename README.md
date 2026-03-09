@@ -1,5 +1,7 @@
 # E-R Diagram Generator
 
+**English** | [中文](README.zh.md)
+
 > A zero-dependency, browser-only ER diagram editor powered by [Mermaid.js](https://mermaid.js.org/) — just open `index.html` and start designing.
 
 ![Demo](docs/demo.gif)

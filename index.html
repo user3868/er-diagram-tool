@@ -383,6 +383,15 @@ function makeDraggable(el,svg,entityMap,connections){
   function endD(){if(!dragging)return;dragging=false;el.classList.remove('entity-dragging');expandVB(svg,entityMap);}
 }
 
+/* 强制 SVG marker 重新计算（修复 iOS Safari/部分 WebKit 在 d 变更后
+   marker-start / marker-end 不重新定位/旋转的 bug）。 */
+function refreshMarkers(path){
+  ['marker-start','marker-end','marker-mid'].forEach(function(attr){
+    var v=path.getAttribute(attr);
+    if(v){path.removeAttribute(attr);path.setAttribute(attr,v);}
+  });
+}
+
 function svgPt(svg,cx,cy){
   var pt=svg.createSVGPoint();pt.x=cx;pt.y=cy;
   var ctm=svg.getScreenCTM();
@@ -401,6 +410,10 @@ function updateLines(movedId,connections,entityMap){
     var p1=getConnPt(si,sides.sA);
     var p2=getConnPt(ei,sides.sB);
     c.path.setAttribute('d',buildPath(p1,sides.sA,p2,sides.sB));
+
+    /* iOS Safari 在 d 变更后不会自动重算 marker-start/marker-end 的位置和朝向。
+       重新赋值 marker 属性强制浏览器重新解析。 */
+    refreshMarkers(c.path);
 
     /* ── Move label <text> + background <rect> to path midpoint ── */
     if(c.label){

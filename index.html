@@ -9,6 +9,7 @@
   :root{--bg:#0f1117;--surface:#1a1d27;--surface-2:#232736;--border:#2e3348;--text:#e4e6f0;--text-dim:#8b90a8;--accent:#5b6eef;--accent-glow:rgba(91,110,239,0.15);--green:#4ecb8d;--orange:#f0a05e;--red:#ef6b6b;--cyan:#5ec4d4}
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden}
+  @media(max-width:800px){html,body{overflow:auto;height:auto}}
   .app-header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);height:52px}
   .app-header h1{font-size:17px;font-weight:600;letter-spacing:-0.01em}
   .app-header .badge{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--accent-glow);color:var(--accent);font-weight:500;border:1px solid rgba(91,110,239,0.3)}
@@ -37,9 +38,9 @@
   .preview-actions{display:flex;gap:6px}
   .act-btn{font-family:inherit;font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);cursor:pointer;transition:all 0.15s}
   .act-btn:hover{border-color:var(--cyan);color:var(--cyan)}
-  .preview-area{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:20px}
-  .diagram-card{background:#fff;border-radius:10px;padding:28px;min-width:280px;max-width:100%;box-shadow:0 6px 24px rgba(0,0,0,0.35);overflow:auto}
-  .diagram-card svg{display:block;max-width:100%;height:auto}
+  .preview-area{flex:1;overflow:auto;padding:20px;text-align:center}
+  .diagram-card{background:#fff;border-radius:10px;padding:28px;min-width:280px;display:inline-block;box-shadow:0 6px 24px rgba(0,0,0,0.35)}
+  .diagram-card svg{display:block}
   .empty-hint{text-align:center;color:#aaa;padding:40px 20px}
   .empty-hint .ico{font-size:42px;margin-bottom:12px;opacity:0.3}
   .empty-hint p{font-size:13px;line-height:1.5}
@@ -48,7 +49,7 @@
   .diagram-card svg .entity-dragging{cursor:grabbing !important;opacity:0.82}
   .drag-hint{position:fixed;bottom:20px;right:20px;background:var(--surface-2);color:var(--text-dim);padding:8px 14px;border-radius:8px;font-size:12px;border:1px solid var(--border);pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:100}
   .drag-hint.visible{opacity:1}
-  @media(max-width:800px){.main-layout{grid-template-columns:1fr;grid-template-rows:1fr 1fr}.editor-panel{border-right:none;border-bottom:1px solid var(--border)}}
+  @media(max-width:800px){.main-layout{grid-template-columns:1fr;grid-template-rows:auto auto;height:auto}.editor-panel{border-right:none;border-bottom:1px solid var(--border);height:60vh}.preview-panel{min-height:70vh}}
 </style>
 </head>
 <body>
@@ -446,8 +447,15 @@ window.zoom=function(delta){
 };
 function applyZoomToSVG(){
   var svg=card.querySelector('svg');if(!svg)return;
-  svg.style.transform='scale('+currentZoom+')';
-  svg.style.transformOrigin='top left';
+  if(!svg.dataset.origW){
+    var w=parseFloat(svg.getAttribute('width'))||svg.getBoundingClientRect().width;
+    var h=parseFloat(svg.getAttribute('height'))||svg.getBoundingClientRect().height;
+    svg.dataset.origW=w;svg.dataset.origH=h;
+  }
+  var ow=parseFloat(svg.dataset.origW),oh=parseFloat(svg.dataset.origH);
+  svg.style.width=(ow*currentZoom)+'px';
+  svg.style.height=(oh*currentZoom)+'px';
+  svg.style.maxWidth='none';
 }
 
 /* ── Export ── */
